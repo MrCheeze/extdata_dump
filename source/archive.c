@@ -15,7 +15,7 @@ void unicodeToChar(char* dst, u16* src) {
 	*dst=0x00;
 }
 
-void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer) {
+void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer, size_t bufsize) {
 	Handle extdata_dir;
 	Result ret = FSUSER_OpenDirectory(NULL, &extdata_dir, extdata_archive, FS_makePath(PATH_CHAR, path));
 	if (ret!=0) {
@@ -43,7 +43,7 @@ void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer) {
 		if (dirStruct.isDirectory) {
 			char newpath[0x120];
 			sprintf(newpath, "%s%s/", path, fileName);
-			dumpFolder(newpath, lowpath_id, dumpfolder, filebuffer);
+			dumpFolder(newpath, lowpath_id, dumpfolder, filebuffer, bufsize);
 		} else {
 			char file_inpath[0x120];
 			char file_outpath[0x120];
@@ -121,7 +121,7 @@ void getAName(int i, char *buffer) {
 	}
 }
 
-void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, char *dirpath, u8 *filebuffer) {
+void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, char *dirpath, u8 *filebuffer, size_t bufsize) {
 	u32 extdata_archive_lowpathdata[3] = {mediatype, i, 0};
 	extdata_archive = (FS_archive){archivetype, (FS_path){PATH_BINARY, 0xC, (u8*)extdata_archive_lowpathdata}};
 	
@@ -135,12 +135,12 @@ void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, ch
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 	mkdir(dirpath, 0777);
-	dumpFolder("/", i, dirpath, filebuffer);
+	dumpFolder("/", i, dirpath, filebuffer, bufsize);
 	
 	FSUSER_CloseArchive(NULL, &extdata_archive);
 }
 
-Result backupAllExtdata(u8 *filebuffer)
+Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 {
 	Result ret=0;
 	u8 region=0;
@@ -169,13 +169,13 @@ Result backupAllExtdata(u8 *filebuffer)
 
 	int i;
 	for (i=0x00000000; i<0x00002000; ++i) {
-		dumpArchive(mediatype_SDMC, i, ARCH_EXTDATA, "user_extdata", filebuffer);
+		dumpArchive(mediatype_SDMC, i, ARCH_EXTDATA, "user_extdata", filebuffer, bufsize);
 	}
 	for (i=0xE0000000; i<0xE0000100; ++i) {
-		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata", filebuffer);
+		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata", filebuffer, bufsize);
 	}
 	for (i=0xF0000000; i<0xF0000100; ++i) {
-		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata", filebuffer);
+		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata", filebuffer, bufsize);
 	}
 	
 	printf("Success!\n");
@@ -186,7 +186,7 @@ Result backupAllExtdata(u8 *filebuffer)
 	return 0;
 }
 
-Result restoreFromSd(u8 *filebuffer) {
+Result restoreFromSd(u8 *filebuffer, size_t bufsize) {
 	memset(filebuffer, 0, bufsize);
 	
 	

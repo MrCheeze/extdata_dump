@@ -75,7 +75,7 @@ int draw_menu(char **menu_entries, int total_menuentries, int x, int y)
 
 int menu_dump()
 {
-	backupAllExtdata(filebuffer);
+	backupAllExtdata(filebuffer, bufsize);
 
 	gfxFlushBuffers();
 	gfxSwapBuffers();
@@ -84,7 +84,7 @@ int menu_dump()
 
 int menu_restore()
 {
-	restoreFromSd(filebuffer);
+	restoreFromSd(filebuffer, bufsize);
 
 	gfxFlushBuffers();
 	gfxSwapBuffers();
