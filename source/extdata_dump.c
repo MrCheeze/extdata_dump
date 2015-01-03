@@ -8,15 +8,12 @@
 
 typedef int (*menuent_funcptr)(void);
 
-int menu_something();
+int menu_dump();
 
 int mainmenu_totalentries = 1;
 char *mainmenu_entries[1] = {
 "Dump extdata to sd card"};
-menuent_funcptr mainmenu_entryhandlers[1] = {menu_something};
-
-u8 *filebuffer;
-u32 filebuffer_maxsize = 0x400000;
+menuent_funcptr mainmenu_entryhandlers[1] = {menu_dump};
 
 int draw_menu(char **menu_entries, int total_menuentries, int x, int y)
 {
@@ -70,9 +67,9 @@ int draw_menu(char **menu_entries, int total_menuentries, int x, int y)
 	return cursor;
 }
 
-int menu_something()
+int menu_dump()
 {
-	open_extdata();
+	backupAllExtdata();
 
 	gfxFlushBuffers();
 	gfxSwapBuffers();

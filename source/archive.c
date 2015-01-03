@@ -8,8 +8,8 @@
 #include "archive.h"
 
 FS_archive extdata_archive;
-size_t q = 0x1000000;
 u8 *filebuffer;
+size_t bufsize = 0x1000000;
 
 void unicodeToChar(char* dst, u16* src) {
 	if(!src || !dst)return;
@@ -17,7 +17,7 @@ void unicodeToChar(char* dst, u16* src) {
 	*dst=0x00;
 }
 
-void foo(char *path, u32 lowpath_id, char *dumpfolder) {
+void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder) {
 	Handle extdata_dir;
 	Result ret = FSUSER_OpenDirectory(NULL, &extdata_dir, extdata_archive, FS_makePath(PATH_CHAR, path));
 	if (ret!=0) {
@@ -26,9 +26,10 @@ void foo(char *path, u32 lowpath_id, char *dumpfolder) {
 		gfxSwapBuffers();
 		return;
 	}
-	char string4[0x120];
-	sprintf(string4, "%s/%08x%s", dumpfolder, (unsigned int) lowpath_id, path);
-	mkdir(string4, 0777);
+	char dirname[0x120];
+	sprintf(dirname, "%s/%08x%s", dumpfolder, (unsigned int) lowpath_id, path);
+	mkdir(dirname, 0777);
+	
 	FS_dirent dirStruct;
 	char fileName[0x106] = "";
 	int cont = 0;
@@ -44,16 +45,16 @@ void foo(char *path, u32 lowpath_id, char *dumpfolder) {
 		if (dirStruct.isDirectory) {
 			char newpath[0x120];
 			sprintf(newpath, "%s%s/", path, fileName);
-			foo(newpath, lowpath_id, dumpfolder);
+			dumpFolder(newpath, lowpath_id, dumpfolder);
 		} else {
-			char string1[0x120];
-			char string2[0x120];
-			char string3[0x120];
+			char file_inpath[0x120];
+			char file_outpath[0x120];
+			char file_display_path[0x120];
 
-			sprintf(string1, "%s%s", path, fileName);
-			sprintf(string2, "%s/%08x%s%s", dumpfolder, (unsigned int) lowpath_id, path, fileName);
-			sprintf(string3, "%08x%s%s", (unsigned int) lowpath_id, path, fileName);
-			archive_copyfile(Extdata_Archive, SDArchive, string1, string2, filebuffer, 0, q, string3);
+			sprintf(file_inpath, "%s%s", path, fileName);
+			sprintf(file_outpath, "%s/%08x%s%s", dumpfolder, (unsigned int) lowpath_id, path, fileName);
+			sprintf(file_display_path, "%08x%s%s", (unsigned int) lowpath_id, path, fileName);
+			archive_copyfile(Extdata_Archive, SDArchive, file_inpath, file_outpath, filebuffer, 0, bufsize, file_display_path);
 		}
 	}
 	printf("total files in 0x%08x%s: %d\n", (unsigned int) lowpath_id, path, (unsigned int) cont);
@@ -63,28 +64,66 @@ void foo(char *path, u32 lowpath_id, char *dumpfolder) {
 }
 
 void getMName(int i, char *buffer) {
-	strcpy(buffer, "UNKNOWN");
-	if (i==0) strcpy(buffer, "NAND");
-	if (i==1) strcpy(buffer, "SDMC");
-	if (i==2) strcpy(buffer, "GAMECARD");
+	switch (i) {
+		case 0:
+			strcpy(buffer, "NAND");
+			break;
+		case 1:	
+			strcpy(buffer, "SDMC");
+			break;
+		case 2:	
+			strcpy(buffer, "GAMECARD");
+			break;
+		default:
+			strcpy(buffer, "UNKNOWN");
+			break;
+	}
 }
 void getAName(int i, char *buffer) {
-	strcpy(buffer, "UNKNOWN");
-	if (i==3) strcpy(buffer, "ROMFS");
-	if (i==4) strcpy(buffer, "SAVEDATA");
-	if (i==6) strcpy(buffer, "EXTDATA");
-	if (i==7) strcpy(buffer, "SHARED_EXTDATA");
-	if (i==8) strcpy(buffer, "SYSTEM_SAVEDATA");
-	if (i==9) strcpy(buffer, "SDMC");
-	if (i==0xA) strcpy(buffer, "SDMC_WRITE_ONLY");
-	if (i==0x12345678) strcpy(buffer, "BOSS_EXTDATA");
-	if (i==0x12345679) strcpy(buffer, "CARD_SPIFS");
-	if (i==0x1234567D) strcpy(buffer, "NAND_RW");
-	if (i==0x1234567E) strcpy(buffer, "NAND_RO");
-	if (i==0x1234567F) strcpy(buffer, "NAND_RO_WRITE_ACCESS");
+	switch (i) {
+		case 3:
+			strcpy(buffer, "ROMFS");
+			break;
+		case 4:
+			strcpy(buffer, "SAVEDATA");
+			break;
+		case 6:
+			strcpy(buffer, "EXTDATA");
+			break;
+		case 7:
+			strcpy(buffer, "SHARED_EXTDATA");
+			break;
+		case 8:
+			strcpy(buffer, "SYSTEM_SAVEDATA");
+			break;
+		case 9:
+			strcpy(buffer, "SDMC");
+			break;
+		case 0xA:
+			strcpy(buffer, "SDMC_WRITE_ONLY");
+			break;
+		case 0x12345678:
+			strcpy(buffer, "BOSS_EXTDATA");
+			break;
+		case 0x12345679:
+			strcpy(buffer, "CARD_SPIFS");
+			break;
+		case 0x1234567D:
+			strcpy(buffer, "NAND_RW");
+			break;
+		case 0x1234567E:
+			strcpy(buffer, "NAND_RO");
+			break;
+		case 0x1234567F:
+			strcpy(buffer, "NAND_RO_WRITE_ACCESS");
+			break;
+		default:
+			strcpy(buffer, "UNKNOWN");
+			break;
+	}
 }
 
-void bar(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, char *dumpfolder) {
+void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, char *dirpath) {
 	u32 extdata_archive_lowpathdata[3] = {mediatype, i, 0};
 	extdata_archive = (FS_archive){archivetype, (FS_path){PATH_BINARY, 0xC, (u8*)extdata_archive_lowpathdata}};
 	
@@ -95,19 +134,19 @@ void bar(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, char *dump
 	}
 	
 	printf("Archive 0x%08x opened.\n", (unsigned int) archivetype);
-	mkdir(dumpfolder, 0777);
-	foo("/", i, dumpfolder);
+	mkdir(dirpath, 0777);
+	dumpFolder("/", i, dirpath);
 	
 	FSUSER_CloseArchive(NULL, &extdata_archive);
 }
 
-Result open_extdata()
+Result backupAllExtdata()
 {
 	Result ret=0;
 	u8 region=0;
 	
-	filebuffer = (u8*)malloc(q);
-	memset(filebuffer, 0, q);
+	filebuffer = (u8*)malloc(bufsize);
+	memset(filebuffer, 0, bufsize);
 
 	ret = initCfgu();
 	if(ret!=0)
@@ -133,13 +172,13 @@ Result open_extdata()
 
 	int i;
 	for (i=0x00000000; i<0x00002000; ++i) {
-		bar(mediatype_SDMC, i, ARCH_EXTDATA, "user_extdata");
+		dumpArchive(mediatype_SDMC, i, ARCH_EXTDATA, "user_extdata");
 	}
 	for (i=0xE0000000; i<0xE0000100; ++i) {
-		bar(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata");
+		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata");
 	}
 	for (i=0xF0000000; i<0xF0000100; ++i) {
-		bar(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata");
+		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata");
 	}
 	
 	printf("Success!\n");
@@ -150,11 +189,6 @@ Result open_extdata()
 	free(filebuffer);
 	
 	return 0;
-}
-
-void close_extdata()
-{
-
 }
 
 Result archive_getfilesize(Archive archive, char *path, u32 *outsize)
