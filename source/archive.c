@@ -134,6 +134,8 @@ void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, ch
 	}
 	
 	printf("Archive 0x%08x opened.\n", (unsigned int) archivetype);
+	gfxFlushBuffers();
+	gfxSwapBuffers();
 	mkdir(dirpath, 0777);
 	dumpFolder("/", i, dirpath);
 	
@@ -307,9 +309,9 @@ Result archive_copyfile(Archive inarchive, Archive outarchive, char *inpath, cha
 	ret = archive_getfilesize(inarchive, inpath, &filesize);
 	if (ret > 0) {
 		printf("archive_getfilesize() ret=0x%08x, size=0x%08x\n", (unsigned int)ret, (unsigned int)filesize);
+		gfxFlushBuffers();
+		gfxSwapBuffers();
 	}
-	gfxFlushBuffers();
-	gfxSwapBuffers();
 	if(ret!=0)return ret;
 
 	if(size==0 || size>filesize)
@@ -326,9 +328,9 @@ Result archive_copyfile(Archive inarchive, Archive outarchive, char *inpath, cha
 		return ret;
 	}
 
-	//printf("Reading %s...\n", display_filepath);
+	/*printf("Reading %s...\n", display_filepath);
 	gfxFlushBuffers();
-	gfxSwapBuffers();
+	gfxSwapBuffers();*/
 
 	ret = archive_readfile(inarchive, inpath, buffer, size);
 	if(ret!=0)
@@ -339,9 +341,9 @@ Result archive_copyfile(Archive inarchive, Archive outarchive, char *inpath, cha
 		return ret;
 	}
 
-	//printf("Writing %s...\n", display_filepath);
+	/*printf("Writing %s...\n", display_filepath);
 	gfxFlushBuffers();
-	gfxSwapBuffers();
+	gfxSwapBuffers();*/
 
 	ret = archive_writefile(outarchive, outpath, buffer, size);
 	if(ret!=0)

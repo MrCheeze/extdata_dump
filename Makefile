@@ -33,7 +33,7 @@ DATA		:=	data
 INCLUDES	:=	include
 
 APP_TITLE       := extdata_dump
-APP_DESCRIPTION := Dumps user and shared extdata, but not boss extdata.
+APP_DESCRIPTION := Dumps decrypted user and shared extdata to the SD card, but not boss extdata.
 APP_AUTHOR      := MrCheeze
 
 #---------------------------------------------------------------------------------

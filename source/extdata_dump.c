@@ -109,7 +109,7 @@ int main()
 
 	consoleInit(GFX_BOTTOM, NULL);
 
-	printf("Extdata dumper?\n");
+	printf("Extdata dumper\n");
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 
