@@ -6,14 +6,20 @@
 
 #include "archive.h"
 
+
 typedef int (*menuent_funcptr)(void);
 
-int menu_dump();
+u8 *filebuffer;
+size_t bufsize = 0x1000000;
 
-int mainmenu_totalentries = 1;
-char *mainmenu_entries[1] = {
-"Dump extdata to sd card"};
-menuent_funcptr mainmenu_entryhandlers[1] = {menu_dump};
+int menu_dump();
+int menu_restore();
+
+int mainmenu_totalentries = 2;
+char *mainmenu_entries[2] = {
+"Dump extdata to sd card",
+"Restore extdata from SD card, based on ini file"};
+menuent_funcptr mainmenu_entryhandlers[2] = {menu_dump, menu_restore};
 
 int draw_menu(char **menu_entries, int total_menuentries, int x, int y)
 {
@@ -69,7 +75,16 @@ int draw_menu(char **menu_entries, int total_menuentries, int x, int y)
 
 int menu_dump()
 {
-	backupAllExtdata();
+	backupAllExtdata(filebuffer);
+
+	gfxFlushBuffers();
+	gfxSwapBuffers();
+	return 0;
+}
+
+int menu_restore()
+{
+	restoreFromSd(filebuffer);
 
 	gfxFlushBuffers();
 	gfxSwapBuffers();
@@ -114,7 +129,10 @@ int main()
 	gfxSwapBuffers();
 
 	consoleClear();
+	
+	filebuffer = (u8*)malloc(bufsize);
 	handle_menus();
+	free(filebuffer);
 
 
 	gfxExit();

@@ -8,8 +8,6 @@
 #include "archive.h"
 
 FS_archive extdata_archive;
-u8 *filebuffer;
-size_t bufsize = 0x1000000;
 
 void unicodeToChar(char* dst, u16* src) {
 	if(!src || !dst)return;
@@ -17,7 +15,7 @@ void unicodeToChar(char* dst, u16* src) {
 	*dst=0x00;
 }
 
-void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder) {
+void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer) {
 	Handle extdata_dir;
 	Result ret = FSUSER_OpenDirectory(NULL, &extdata_dir, extdata_archive, FS_makePath(PATH_CHAR, path));
 	if (ret!=0) {
@@ -45,7 +43,7 @@ void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder) {
 		if (dirStruct.isDirectory) {
 			char newpath[0x120];
 			sprintf(newpath, "%s%s/", path, fileName);
-			dumpFolder(newpath, lowpath_id, dumpfolder);
+			dumpFolder(newpath, lowpath_id, dumpfolder, filebuffer);
 		} else {
 			char file_inpath[0x120];
 			char file_outpath[0x120];
@@ -123,7 +121,7 @@ void getAName(int i, char *buffer) {
 	}
 }
 
-void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, char *dirpath) {
+void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, char *dirpath, u8 *filebuffer) {
 	u32 extdata_archive_lowpathdata[3] = {mediatype, i, 0};
 	extdata_archive = (FS_archive){archivetype, (FS_path){PATH_BINARY, 0xC, (u8*)extdata_archive_lowpathdata}};
 	
@@ -137,17 +135,16 @@ void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, ch
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 	mkdir(dirpath, 0777);
-	dumpFolder("/", i, dirpath);
+	dumpFolder("/", i, dirpath, filebuffer);
 	
 	FSUSER_CloseArchive(NULL, &extdata_archive);
 }
 
-Result backupAllExtdata()
+Result backupAllExtdata(u8 *filebuffer)
 {
 	Result ret=0;
 	u8 region=0;
 	
-	filebuffer = (u8*)malloc(bufsize);
 	memset(filebuffer, 0, bufsize);
 
 	ret = initCfgu();
@@ -156,7 +153,6 @@ Result backupAllExtdata()
 		printf("initCfgu() failed: 0x%08x\n", (unsigned int)ret);
 		gfxFlushBuffers();
 		gfxSwapBuffers();
-		free(filebuffer);
 		return ret;
 	}
 
@@ -166,7 +162,6 @@ Result backupAllExtdata()
 		printf("CFGU_SecureInfoGetRegion() failed: 0x%08x\n", (unsigned int)ret);
 		gfxFlushBuffers();
 		gfxSwapBuffers();
-		free(filebuffer);
 		return ret;
 	}
 
@@ -174,21 +169,28 @@ Result backupAllExtdata()
 
 	int i;
 	for (i=0x00000000; i<0x00002000; ++i) {
-		dumpArchive(mediatype_SDMC, i, ARCH_EXTDATA, "user_extdata");
+		dumpArchive(mediatype_SDMC, i, ARCH_EXTDATA, "user_extdata", filebuffer);
 	}
 	for (i=0xE0000000; i<0xE0000100; ++i) {
-		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata");
+		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata", filebuffer);
 	}
 	for (i=0xF0000000; i<0xF0000100; ++i) {
-		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata");
+		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata", filebuffer);
 	}
 	
 	printf("Success!\n");
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 	//svcSleepThread(5000000000LL);
+	
+	return 0;
+}
 
-	free(filebuffer);
+Result restoreFromSd(u8 *filebuffer) {
+	memset(filebuffer, 0, bufsize);
+	
+	
+	
 	
 	return 0;
 }
