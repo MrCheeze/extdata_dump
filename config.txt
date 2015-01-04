@@ -1,0 +1,26 @@
+; This file is not needed to dump your extdata.
+; Rather, it specifies what files you want to restore from SD card to extdata.
+
+; sd_source is the path to a file on the SD card. Can be relative.
+; destination_type must be USER or SHARED.
+; destination_archive is an eight-digit hex ID. Check your own dumps or use http://3dbrew.org/wiki/Extdata#SD_Extdata
+; destination_path is the path to the extdata file you're overwriting.
+
+
+
+; replace the Play Coin file with an example one containing 13 coins
+[BEGIN]
+sd_source=example_gamecoin.dat
+destination_type=SHARED
+destination_archive=f000000b
+destination_path=/gamecoin.dat
+[END]
+
+
+; replace the Mii Maker banner image with a previously-dumped Face Raiders banner image
+[BEGIN]
+sd_source=user_extdata/0000021d/ExBanner/COMMON.bin
+destination_type=USER
+destination_archive=00000217
+destination_path=/ExBanner/COMMON.bin
+[END]

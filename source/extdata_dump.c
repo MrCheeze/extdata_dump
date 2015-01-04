@@ -10,7 +10,7 @@
 typedef int (*menuent_funcptr)(void);
 
 u8 *filebuffer;
-size_t bufsize = 0x1000000;
+size_t bufsize = 0x800000;
 
 int menu_dump();
 int menu_restore();
@@ -18,7 +18,7 @@ int menu_restore();
 int mainmenu_totalentries = 2;
 char *mainmenu_entries[2] = {
 "Dump extdata to sd card",
-"Restore extdata from SD card, based on ini file"};
+"Restore extdata from SD card"};
 menuent_funcptr mainmenu_entryhandlers[2] = {menu_dump, menu_restore};
 
 int draw_menu(char **menu_entries, int total_menuentries, int x, int y)
