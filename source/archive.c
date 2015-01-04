@@ -282,11 +282,11 @@ Result backupByConfig(u8 *filebuffer, size_t bufsize) {
 												 "source_archive=%x\n"
 												 "source_path=%999[^\r\n]\n"
 												 "\[/BACKUP]", sd_destination, source_type, (unsigned int*) &source_archive, source_path) == 4) {
-			if (!strcmp(destination_type, "USER")) {
+			if (!strcmp(source_type, "USER")) {
 				mtype = mediatype_SDMC;
 				atype = ARCH_EXTDATA;
 			}
-			else if (!strcmp(destination_type, "SHARED")) {
+			else if (!strcmp(source_type, "SHARED")) {
 				mtype = mediatype_NAND;
 				atype = ARCH_SHARED_EXTDATA;
 			} else {
