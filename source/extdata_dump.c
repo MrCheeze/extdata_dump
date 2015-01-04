@@ -13,6 +13,7 @@ u8 *filebuffer;
 size_t bufsize = 0x800000;
 
 int menu_dump();
+int menu_configdump();
 int menu_restore();
 
 int mainmenu_totalentries = 3;
