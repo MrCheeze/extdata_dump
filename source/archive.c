@@ -7,6 +7,8 @@
 
 #include "archive.h"
 
+/* this code sucks, fyi */
+
 FS_archive extdata_archive;
 
 void unicodeToChar(char* dst, u16* src) {
@@ -206,12 +208,12 @@ Result restoreFromSd(u8 *filebuffer, size_t bufsize) {
 	u8 *filebuffer2 = malloc(bufsize);
 	memset(filebuffer2, 0, bufsize);
 	for (i=0; i<filesize; i++) {
-		if (sscanf((const char*) filebuffer + i, "\[BEGIN]\n"
+		if (sscanf((const char*) filebuffer + i, "\[RESTORE]\n"
 												 "sd_source=%999[^\r\n]\n"
 												 "destination_type=%999[^\r\n]\n"
 												 "destination_archive=%x\n"
 												 "destination_path=%999[^\r\n]\n"
-												 "\[END]", sd_source, destination_type, (unsigned int*) &destination_archive, destination_path) == 4) {
+												 "\[/RESTORE]", sd_source, destination_type, (unsigned int*) &destination_archive, destination_path) == 4) {
 			if (!strcmp(destination_type, "USER")) {
 				mtype = mediatype_SDMC;
 				atype = ARCH_EXTDATA;
@@ -235,10 +237,78 @@ Result restoreFromSd(u8 *filebuffer, size_t bufsize) {
 				gfxSwapBuffers();
 				continue;
 			}
-			printf("Copying to extdata %08x...\n", (unsigned int) destination_archive);
+			printf("Restoring to %s\n", destination_path);
 			gfxFlushBuffers();
 			gfxSwapBuffers();
 			ret = archive_copyfile(SDArchive, Extdata_Archive, sd_source, destination_path, filebuffer2, 0, bufsize, destination_path);
+			if (ret) {
+				printf("Copying failed!\n");
+			} else {
+				printf("Success.\n");
+			}
+			gfxFlushBuffers();
+			gfxSwapBuffers();
+			FSUSER_CloseArchive(NULL, &extdata_archive);
+		}
+	}
+	free(filebuffer2);
+	
+	return 0;
+}
+
+Result backupByConfig(u8 *filebuffer, size_t bufsize) {
+	memset(filebuffer, 0, bufsize);
+	
+	u32 filesize;
+	archive_getfilesize(SDArchive, "config.txt", &filesize);
+	Result ret = archive_readfile(SDArchive, "config.txt", filebuffer, filesize);
+	if (ret) {
+		printf("Could not read config file. (err=%d)\n", (int) ret);
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		return ret;
+	}
+	char sd_destination[1000], source_type[1000], source_path[1000];
+	u32 source_archive;
+	int i;
+	mediatypes_enum mtype;
+	FS_archiveIds atype;
+	u8 *filebuffer2 = malloc(bufsize);
+	memset(filebuffer2, 0, bufsize);
+	for (i=0; i<filesize; i++) {
+		if (sscanf((const char*) filebuffer + i, "\[BACKUP]\n"
+												 "sd_destination=%999[^\r\n]\n"
+												 "source_type=%999[^\r\n]\n"
+												 "source_archive=%x\n"
+												 "source_path=%999[^\r\n]\n"
+												 "\[/BACKUP]", sd_destination, source_type, (unsigned int*) &source_archive, source_path) == 4) {
+			if (!strcmp(destination_type, "USER")) {
+				mtype = mediatype_SDMC;
+				atype = ARCH_EXTDATA;
+			}
+			else if (!strcmp(destination_type, "SHARED")) {
+				mtype = mediatype_NAND;
+				atype = ARCH_SHARED_EXTDATA;
+			} else {
+				printf("bad destination type\n");
+				gfxFlushBuffers();
+				gfxSwapBuffers();
+				continue;
+			}
+			u32 extdata_archive_lowpathdata[3] = {mtype, source_archive, 0};
+			extdata_archive = (FS_archive){atype, (FS_path){PATH_BINARY, 0xC, (u8*)extdata_archive_lowpathdata}};
+			Result ret = FSUSER_OpenArchive(NULL, &extdata_archive);
+			if(ret!=0)
+			{
+				printf("could not open archive\n");
+				gfxFlushBuffers();
+				gfxSwapBuffers();
+				continue;
+			}
+			printf("Dumping from %s\n", source_path);
+			gfxFlushBuffers();
+			gfxSwapBuffers();
+			ret = archive_copyfile(Extdata_Archive, SDArchive, source_path, sd_destination, filebuffer2, 0, bufsize, source_path);
 			if (ret) {
 				printf("Copying failed!\n");
 			} else {

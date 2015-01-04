@@ -15,11 +15,12 @@ size_t bufsize = 0x800000;
 int menu_dump();
 int menu_restore();
 
-int mainmenu_totalentries = 2;
-char *mainmenu_entries[2] = {
-"Dump extdata to sd card",
-"Restore extdata from SD card"};
-menuent_funcptr mainmenu_entryhandlers[2] = {menu_dump, menu_restore};
+int mainmenu_totalentries = 3;
+char *mainmenu_entries[3] = {
+"Dump all extdata to sd card",
+"Dump extdata specified in config",
+"Restore extdata specified in config"};
+menuent_funcptr mainmenu_entryhandlers[3] = {menu_dump, menu_configdump, menu_restore};
 
 int draw_menu(char **menu_entries, int total_menuentries, int x, int y)
 {
@@ -76,6 +77,15 @@ int draw_menu(char **menu_entries, int total_menuentries, int x, int y)
 int menu_dump()
 {
 	backupAllExtdata(filebuffer, bufsize);
+
+	gfxFlushBuffers();
+	gfxSwapBuffers();
+	return 0;
+}
+
+int menu_configdump()
+{
+	backupByConfig(filebuffer, bufsize);
 
 	gfxFlushBuffers();
 	gfxSwapBuffers();
