@@ -33,7 +33,7 @@ DATA		:=	data
 INCLUDES	:=	include
 
 APP_TITLE       := extdata_dump
-APP_DESCRIPTION := Dumps decrypted user and shared extdata to the SD card, but not boss extdata.
+APP_DESCRIPTION := Dumps decrypted extra data to the SD card. Also allows you to edit and restore it.
 APP_AUTHOR      := MrCheeze
 
 #---------------------------------------------------------------------------------

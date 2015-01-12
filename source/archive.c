@@ -9,6 +9,9 @@
 
 /* this code sucks, fyi */
 
+char *user_extdata_dumpfolder = "dumps";
+char *shared_extdata_dumpfolder = "dumps";
+
 FS_archive extdata_archive;
 
 void unicodeToChar(char* dst, u16* src) {
@@ -133,7 +136,7 @@ void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, ch
 		return;
 	}
 	
-	printf("Archive 0x%08x opened.\n", (unsigned int) archivetype);
+	printf("Archive 0x%08x opened.\n", (unsigned int) i);
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 	mkdir(dirpath, 0777);
@@ -171,13 +174,13 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 
 	int i;
 	for (i=0x00000000; i<0x00002000; ++i) {
-		dumpArchive(mediatype_SDMC, i, ARCH_EXTDATA, "user_extdata", filebuffer, bufsize);
+		dumpArchive(mediatype_SDMC, i, ARCH_EXTDATA, user_extdata_dumpfolder, filebuffer, bufsize);
 	}
 	for (i=0xE0000000; i<0xE0000100; ++i) {
-		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata", filebuffer, bufsize);
+		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, shared_extdata_dumpfolder, filebuffer, bufsize);
 	}
 	for (i=0xF0000000; i<0xF0000100; ++i) {
-		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, "shared_extdata", filebuffer, bufsize);
+		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, shared_extdata_dumpfolder, filebuffer, bufsize);
 	}
 	
 	printf("Success!\n");
@@ -188,44 +191,28 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 	return 0;
 }
 
-Result restoreFromSd(u8 *filebuffer, size_t bufsize) {
-	memset(filebuffer, 0, bufsize);
+Result restoreFromSd(u8 *buf, size_t bufsize) {
+	memset(buf, 0, bufsize);
 	
-	u32 filesize;
-	archive_getfilesize(SDArchive, "config.txt", &filesize);
-	Result ret = archive_readfile(SDArchive, "config.txt", filebuffer, filesize);
-	if (ret) {
-		printf("Could not read config file. (err=%d)\n", (int) ret);
-		gfxFlushBuffers();
-		gfxSwapBuffers();
-		return ret;
-	}
-	char sd_source[1000], destination_type[1000], destination_path[1000];
+	FILE *configfile = fopen("config.txt", "r");
+	if (configfile==NULL) return errno;
+
+	char sd_source[1000], destination_path[1000];
 	u32 destination_archive;
-	int i;
 	mediatypes_enum mtype;
 	FS_archiveIds atype;
 	u8 *filebuffer2 = malloc(bufsize);
 	memset(filebuffer2, 0, bufsize);
-	for (i=0; i<filesize; i++) {
-		if (sscanf((const char*) filebuffer + i, "\[RESTORE]\n"
-												 "sd_source=%999[^\r\n]\n"
-												 "destination_type=%999[^\r\n]\n"
-												 "destination_archive=%x\n"
-												 "destination_path=%999[^\r\n]\n"
-												 "\[/RESTORE]", sd_source, destination_type, (unsigned int*) &destination_archive, destination_path) == 4) {
-			if (!strcmp(destination_type, "USER")) {
-				mtype = mediatype_SDMC;
-				atype = ARCH_EXTDATA;
-			}
-			else if (!strcmp(destination_type, "SHARED")) {
+	
+	while (fgets((char*) buf, bufsize, configfile) != NULL) {
+		if (sscanf((const char*) buf, "RESTORE \"%999[^\"]\" \"%x:%999[^\"]\"", sd_source, (unsigned int*) &destination_archive, destination_path) == 3) {
+			if (destination_archive >= 0x80000000) {
 				mtype = mediatype_NAND;
 				atype = ARCH_SHARED_EXTDATA;
-			} else {
-				printf("bad destination type\n");
-				gfxFlushBuffers();
-				gfxSwapBuffers();
-				continue;
+			}
+			else {
+				mtype = mediatype_SDMC;
+				atype = ARCH_EXTDATA;
 			}
 			u32 extdata_archive_lowpathdata[3] = {mtype, destination_archive, 0};
 			extdata_archive = (FS_archive){atype, (FS_path){PATH_BINARY, 0xC, (u8*)extdata_archive_lowpathdata}};
@@ -252,48 +239,33 @@ Result restoreFromSd(u8 *filebuffer, size_t bufsize) {
 		}
 	}
 	free(filebuffer2);
+	fclose(configfile);
 	
 	return 0;
 }
 
-Result backupByConfig(u8 *filebuffer, size_t bufsize) {
-	memset(filebuffer, 0, bufsize);
+Result backupByConfig(u8 *buf, size_t bufsize) {
+	memset(buf, 0, bufsize);
 	
-	u32 filesize;
-	archive_getfilesize(SDArchive, "config.txt", &filesize);
-	Result ret = archive_readfile(SDArchive, "config.txt", filebuffer, filesize);
-	if (ret) {
-		printf("Could not read config file. (err=%d)\n", (int) ret);
-		gfxFlushBuffers();
-		gfxSwapBuffers();
-		return ret;
-	}
-	char sd_destination[1000], source_type[1000], source_path[1000];
+	FILE *configfile = fopen("config.txt", "r");
+	if (configfile==NULL) return errno;
+
+	char source_path[1000], sd_destination[1000];
 	u32 source_archive;
-	int i;
 	mediatypes_enum mtype;
 	FS_archiveIds atype;
 	u8 *filebuffer2 = malloc(bufsize);
 	memset(filebuffer2, 0, bufsize);
-	for (i=0; i<filesize; i++) {
-		if (sscanf((const char*) filebuffer + i, "\[BACKUP]\n"
-												 "sd_destination=%999[^\r\n]\n"
-												 "source_type=%999[^\r\n]\n"
-												 "source_archive=%x\n"
-												 "source_path=%999[^\r\n]\n"
-												 "\[/BACKUP]", sd_destination, source_type, (unsigned int*) &source_archive, source_path) == 4) {
-			if (!strcmp(source_type, "USER")) {
-				mtype = mediatype_SDMC;
-				atype = ARCH_EXTDATA;
-			}
-			else if (!strcmp(source_type, "SHARED")) {
+	
+	while (fgets((char*) buf, bufsize, configfile) != NULL) {
+		if (sscanf((const char*) buf, "DUMP \"%x:%999[^\"]\" \"%999[^\"]\"", (unsigned int*) &source_archive, source_path, sd_destination) == 3) {
+			if (source_archive >= 0x80000000) {
 				mtype = mediatype_NAND;
 				atype = ARCH_SHARED_EXTDATA;
-			} else {
-				printf("bad destination type\n");
-				gfxFlushBuffers();
-				gfxSwapBuffers();
-				continue;
+			}
+			else {
+				mtype = mediatype_SDMC;
+				atype = ARCH_EXTDATA;
 			}
 			u32 extdata_archive_lowpathdata[3] = {mtype, source_archive, 0};
 			extdata_archive = (FS_archive){atype, (FS_path){PATH_BINARY, 0xC, (u8*)extdata_archive_lowpathdata}};
@@ -320,6 +292,7 @@ Result backupByConfig(u8 *filebuffer, size_t bufsize) {
 		}
 	}
 	free(filebuffer2);
+	fclose(configfile);
 	
 	return 0;
 }
