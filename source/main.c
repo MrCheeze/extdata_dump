@@ -131,7 +131,7 @@ int main()
 {
 
 	// Initialize services
-	gfxInit();
+	gfxInitDefault();
 
 	consoleInit(GFX_BOTTOM, NULL);
 
