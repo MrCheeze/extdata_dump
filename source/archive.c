@@ -393,7 +393,14 @@ Result archive_writefile(Archive archive, char *path, u8 *buffer, u32 size)
 		return 0;
 	}
 
-	ret = FSUSER_OpenFile(NULL, &filehandle, extdata_archive, FS_makePath(PATH_CHAR, path), FS_OPEN_WRITE, 0);
+	FS_path fspath = FS_makePath(PATH_CHAR, path);
+	
+	ret = FSUSER_DeleteFile(NULL, extdata_archive, fspath);
+	
+	ret = FSUSER_CreateFile(NULL, extdata_archive, fspath, size);
+	if(ret!=0)return ret;
+	
+	ret = FSUSER_OpenFile(NULL, &filehandle, extdata_archive, fspath, FS_OPEN_WRITE, 0);
 	if(ret!=0)return ret;
 
 	ret = FSFILE_Write(filehandle, &tmpval, 0, buffer, size, FS_WRITE_FLUSH);
