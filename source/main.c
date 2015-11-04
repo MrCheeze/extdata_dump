@@ -78,7 +78,7 @@ int draw_menu(char **menu_entries, int total_menuentries, int x, int y)
 int menu_dump()
 {
 	backupAllExtdata(filebuffer, bufsize);
-
+	
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 	return 0;

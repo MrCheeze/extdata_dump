@@ -169,13 +169,39 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 		gfxSwapBuffers();
 		return ret;
 	}
-
 	exitCfgu();
 
-	int i;
-	for (i=0x00000000; i<0x00002000; ++i) {
-		dumpArchive(mediatype_SDMC, i, ARCH_EXTDATA, user_extdata_dumpfolder, filebuffer, bufsize);
+	amInit();
+	u32 titleCount = 0;
+	ret = AM_GetTitleCount(mediatype_SDMC, &titleCount);
+	if(ret!=0)
+	{
+		printf("AM_GetTitleCount() failed: 0x%08x\n", (unsigned int)ret);
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		return ret;
 	}
+	u64* titleList = (u64*)malloc(sizeof(u64) * titleCount);
+	ret = AM_GetTitleIdList(mediatype_SDMC, titleCount, titleList);
+	if(ret!=0)
+	{
+		printf("AM_GetTitleIdList() failed: 0x%08x\n", (unsigned int)ret);
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		return ret;
+	}
+	
+	int i;
+	for (i=0; i<titleCount; ++i) {
+		unsigned int title = (titleList[i]>>8) & 0xFFFFFF;
+		dumpArchive(mediatype_SDMC, title, ARCH_EXTDATA, user_extdata_dumpfolder, filebuffer, bufsize);
+		if (title == 0x725) {
+			svcSleepThread(5000000000LL);
+		}
+	}
+	free(titleList);
+	amExit();
+	
 	for (i=0xE0000000; i<0xE0000100; ++i) {
 		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, shared_extdata_dumpfolder, filebuffer, bufsize);
 	}
