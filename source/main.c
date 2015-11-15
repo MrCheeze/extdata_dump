@@ -10,7 +10,7 @@
 typedef int (*menuent_funcptr)(void);
 
 u8 *filebuffer;
-size_t bufsize = 0x800000;
+size_t bufsize = 0x1200000;
 
 int menu_dump();
 int menu_configdump();
@@ -142,8 +142,16 @@ int main()
 	consoleClear();
 	
 	filebuffer = (u8*)malloc(bufsize);
-	handle_menus();
-	free(filebuffer);
+	if (filebuffer==NULL)
+	{
+		printf("malloc failed\n");
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		svcSleepThread(5000000000LL);
+	} else {
+		handle_menus();
+		free(filebuffer);
+	}
 
 
 	gfxExit();

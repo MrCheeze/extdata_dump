@@ -158,7 +158,7 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 		printf("initCfgu() failed: 0x%08x\n", (unsigned int)ret);
 		gfxFlushBuffers();
 		gfxSwapBuffers();
-		return ret;
+		return -1;
 	}
 
 	ret = CFGU_SecureInfoGetRegion(&region);
@@ -182,6 +182,13 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 		return ret;
 	}
 	u64* titleList = (u64*)malloc(sizeof(u64) * titleCount);
+	if (titleList==NULL)
+	{
+		printf("malloc failed\n");
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		return -1;
+	}
 	ret = AM_GetTitleIdList(mediatype_SDMC, titleCount, titleList);
 	if(ret!=0)
 	{
@@ -217,8 +224,8 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 	return 0;
 }
 
-Result restoreFromSd(u8 *buf, size_t bufsize) {
-	memset(buf, 0, bufsize);
+Result restoreFromSd(u8 *filebuffer, size_t bufsize) {
+	memset(filebuffer, 0, bufsize);
 	
 	FILE *configfile = fopen("config.txt", "r");
 	if (configfile==NULL) return errno;
@@ -227,11 +234,19 @@ Result restoreFromSd(u8 *buf, size_t bufsize) {
 	u32 destination_archive;
 	mediatypes_enum mtype;
 	FS_archiveIds atype;
-	u8 *filebuffer2 = malloc(bufsize);
-	memset(filebuffer2, 0, bufsize);
+	int buf2size = 0x10000;
+	u8 *buf2 = malloc(buf2size);
+	if (buf2==NULL)
+	{
+		printf("malloc failed\n");
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		return -1;
+	}
+	memset(buf2, 0, buf2size);
 	
-	while (fgets((char*) buf, bufsize, configfile) != NULL) {
-		if (sscanf((const char*) buf, "RESTORE \"%999[^\"]\" \"%x:%999[^\"]\"", sd_source, (unsigned int*) &destination_archive, destination_path) == 3) {
+	while (fgets((char*) buf2, buf2size, configfile) != NULL) {
+		if (sscanf((const char*) buf2, "RESTORE \"%999[^\"]\" \"%x:%999[^\"]\"", sd_source, (unsigned int*) &destination_archive, destination_path) == 3) {
 			if (destination_archive >= 0x80000000) {
 				mtype = mediatype_NAND;
 				atype = ARCH_SHARED_EXTDATA;
@@ -253,7 +268,7 @@ Result restoreFromSd(u8 *buf, size_t bufsize) {
 			printf("Restoring to %s\n", destination_path);
 			gfxFlushBuffers();
 			gfxSwapBuffers();
-			ret = archive_copyfile(SDArchive, Extdata_Archive, sd_source, destination_path, filebuffer2, 0, bufsize, destination_path);
+			ret = archive_copyfile(SDArchive, Extdata_Archive, sd_source, destination_path, filebuffer, 0, bufsize, destination_path);
 			if (ret) {
 				printf("Copying failed!\n");
 			} else {
@@ -264,14 +279,14 @@ Result restoreFromSd(u8 *buf, size_t bufsize) {
 			FSUSER_CloseArchive(NULL, &extdata_archive);
 		}
 	}
-	free(filebuffer2);
+	free(buf2);
 	fclose(configfile);
 	
 	return 0;
 }
 
-Result backupByConfig(u8 *buf, size_t bufsize) {
-	memset(buf, 0, bufsize);
+Result backupByConfig(u8 *filebuffer, size_t bufsize) {
+	memset(filebuffer, 0, bufsize);
 	
 	FILE *configfile = fopen("config.txt", "r");
 	if (configfile==NULL) return errno;
@@ -280,11 +295,19 @@ Result backupByConfig(u8 *buf, size_t bufsize) {
 	u32 source_archive;
 	mediatypes_enum mtype;
 	FS_archiveIds atype;
-	u8 *filebuffer2 = malloc(bufsize);
-	memset(filebuffer2, 0, bufsize);
+	int buf2size = 0x10000;
+	u8 *buf2 = malloc(buf2size);
+	if (buf2==NULL)
+	{
+		printf("malloc failed\n");
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		return -1;
+	}
+	memset(buf2, 0, buf2size);
 	
-	while (fgets((char*) buf, bufsize, configfile) != NULL) {
-		if (sscanf((const char*) buf, "DUMP \"%x:%999[^\"]\" \"%999[^\"]\"", (unsigned int*) &source_archive, source_path, sd_destination) == 3) {
+	while (fgets((char*) buf2, buf2size, configfile) != NULL) {
+		if (sscanf((const char*) buf2, "DUMP \"%x:%999[^\"]\" \"%999[^\"]\"", (unsigned int*) &source_archive, source_path, sd_destination) == 3) {
 			if (source_archive >= 0x80000000) {
 				mtype = mediatype_NAND;
 				atype = ARCH_SHARED_EXTDATA;
@@ -306,7 +329,7 @@ Result backupByConfig(u8 *buf, size_t bufsize) {
 			printf("Dumping from %s\n", source_path);
 			gfxFlushBuffers();
 			gfxSwapBuffers();
-			ret = archive_copyfile(Extdata_Archive, SDArchive, source_path, sd_destination, filebuffer2, 0, bufsize, source_path);
+			ret = archive_copyfile(Extdata_Archive, SDArchive, source_path, sd_destination, filebuffer, 0, bufsize, source_path);
 			if (ret) {
 				printf("Copying failed!\n");
 			} else {
@@ -317,7 +340,7 @@ Result backupByConfig(u8 *buf, size_t bufsize) {
 			FSUSER_CloseArchive(NULL, &extdata_archive);
 		}
 	}
-	free(filebuffer2);
+	free(buf2);
 	fclose(configfile);
 	
 	return 0;
