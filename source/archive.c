@@ -184,14 +184,28 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 	int i;
 	
 	u32 extdataCount = 0;
-	EnumerateExtSaveData((u8*) extdataList, 0x10000, &extdataCount, false);
+	ret = EnumerateExtSaveData((u8*) extdataList, 0x10000, &extdataCount, false);
+	if(ret!=0)
+	{
+		printf("EnumerateExtSaveData() failed: 0x%08x\n", (unsigned int)ret);
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		return ret;
+	}
 	
 	for (i=0; i<extdataCount; ++i) {
 		dumpArchive(mediatype_SDMC, extdataList[i], ARCH_EXTDATA, user_extdata_dumpfolder, filebuffer, bufsize);
 	}
 	
 	extdataCount = 0;
-	EnumerateExtSaveData((u8*) extdataList, 0x10000, &extdataCount, true);
+	ret = EnumerateExtSaveData((u8*) extdataList, 0x10000, &extdataCount, true);
+	if(ret!=0)
+	{
+		printf("EnumerateExtSaveData() failed: 0x%08x\n", (unsigned int)ret);
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		return ret;
+	}
 	
 	for (i=0; i<extdataCount; ++i) {
 		dumpArchive(mediatype_NAND, extdataList[i], ARCH_SHARED_EXTDATA, shared_extdata_dumpfolder, filebuffer, bufsize);
