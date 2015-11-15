@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "archive.h"
+#include "enumerate_extdata.h"
 
 /* this code sucks, fyi */
 
@@ -171,50 +172,31 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 	}
 	exitCfgu();
 
-	amInit();
-	u32 titleCount = 0;
-	ret = AM_GetTitleCount(mediatype_SDMC, &titleCount);
-	if(ret!=0)
-	{
-		printf("AM_GetTitleCount() failed: 0x%08x\n", (unsigned int)ret);
-		gfxFlushBuffers();
-		gfxSwapBuffers();
-		return ret;
-	}
-	u64* titleList = (u64*)malloc(sizeof(u64) * titleCount);
-	if (titleList==NULL)
+	
+	u32* extdataList = (u32*)malloc(0x10000);
+	if (extdataList==NULL)
 	{
 		printf("malloc failed\n");
 		gfxFlushBuffers();
 		gfxSwapBuffers();
 		return -1;
 	}
-	ret = AM_GetTitleIdList(mediatype_SDMC, titleCount, titleList);
-	if(ret!=0)
-	{
-		printf("AM_GetTitleIdList() failed: 0x%08x\n", (unsigned int)ret);
-		gfxFlushBuffers();
-		gfxSwapBuffers();
-		return ret;
-	}
-	
 	int i;
-	for (i=0; i<titleCount; ++i) {
-		unsigned int title = (titleList[i]>>8) & 0xFFFFFF;
-		dumpArchive(mediatype_SDMC, title, ARCH_EXTDATA, user_extdata_dumpfolder, filebuffer, bufsize);
-		if (title == 0x725) {
-			svcSleepThread(5000000000LL);
-		}
-	}
-	free(titleList);
-	amExit();
 	
-	for (i=0xE0000000; i<0xE0000100; ++i) {
-		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, shared_extdata_dumpfolder, filebuffer, bufsize);
+	u32 extdataCount = 0;
+	EnumerateExtSaveData((u8*) extdataList, 0x10000, &extdataCount, false);
+	
+	for (i=0; i<extdataCount; ++i) {
+		dumpArchive(mediatype_SDMC, extdataList[i], ARCH_EXTDATA, user_extdata_dumpfolder, filebuffer, bufsize);
 	}
-	for (i=0xF0000000; i<0xF0000100; ++i) {
-		dumpArchive(mediatype_NAND, i, ARCH_SHARED_EXTDATA, shared_extdata_dumpfolder, filebuffer, bufsize);
+	
+	extdataCount = 0;
+	EnumerateExtSaveData((u8*) extdataList, 0x10000, &extdataCount, true);
+	
+	for (i=0; i<extdataCount; ++i) {
+		dumpArchive(mediatype_NAND, extdataList[i], ARCH_SHARED_EXTDATA, shared_extdata_dumpfolder, filebuffer, bufsize);
 	}
+	free(extdataList);
 	
 	printf("Success!\n");
 	gfxFlushBuffers();
