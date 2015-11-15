@@ -1,8 +1,5 @@
-; dump eShop music
-DUMP "00000219:/boss_bgm1" "boss_bgm1.m4a"
-
-; replace the Play Coin file with an example one containing 13 coins
-RESTORE "example_gamecoin.dat" "f000000b:/gamecoin.dat"
-
 ; replace the Mii Maker banner image with the Face Raiders banner image (assuming you dumped it already)
-RESTORE "dumps/0000021d/ExBanner/COMMON.bin" "00000217:/ExBanner/COMMON.bin"
+DUMP "000014d1:/BadgeMngFile.dat" "Badge2File.dat"
+DUMP "000014d1:/BadgeData.dat" "Badge2Data.dat"
+RESTORE "BadgeMngFile.dat" "000014d1:/BadgeMngFile.dat"
+RESTORE "BadgeData.dat" "000014d1:/BadgeData.dat"
