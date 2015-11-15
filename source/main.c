@@ -10,7 +10,7 @@
 typedef int (*menuent_funcptr)(void);
 
 u8 *filebuffer;
-size_t bufsize = 0x800000;
+size_t bufsize = 0x1200000;
 
 int menu_dump();
 int menu_configdump();
@@ -149,4 +149,3 @@ int main()
 	gfxExit();
 	return 0;
 }
-
