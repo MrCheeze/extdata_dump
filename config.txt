@@ -1,4 +1,3 @@
-; replace the Mii Maker banner image with the Face Raiders banner image (assuming you dumped it already)
 DUMP "000014d1:/BadgeMngFile.dat" "Badge2File.dat"
 DUMP "000014d1:/BadgeData.dat" "Badge2Data.dat"
 RESTORE "BadgeMngFile.dat" "000014d1:/BadgeMngFile.dat"
