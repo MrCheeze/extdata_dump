@@ -158,7 +158,7 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 		printf("initCfgu() failed: 0x%08x\n", (unsigned int)ret);
 		gfxFlushBuffers();
 		gfxSwapBuffers();
-		return -1;
+		return ret;
 	}
 
 	ret = CFGU_SecureInfoGetRegion(&region);
