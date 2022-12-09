@@ -3,7 +3,7 @@
 
 Allows you to decrypt, edit, and then recrypt 3ds extra data. For use with Ninjhax.
 
-Precompiled download: https://www.dropbox.com/s/8ncxrv4hevssz4g/playcoin.zip?dl=0
+Precompiled download: https://www.dropbox.com/s/2gnbqvlp01u7dg8/extdata_dump.zip?dl=0
 
 ----
 
