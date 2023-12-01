@@ -15,6 +15,71 @@ char *shared_extdata_dumpfolder = "dumps";
 
 FS_Archive extdata_archive;
 
+static int maybe_mkdir(const char* path)
+{
+    struct stat st;
+    errno = 0;
+
+    /* Try to make the directory */
+    if (mkdir(path, 0777) == 0)
+        return 0;
+
+    /* If it fails for any reason but EEXIST, fail */
+    if (errno != EEXIST)
+        return -1;
+
+    /* Check if the existing path is a directory */
+    if (stat(path, &st) != 0)
+        return -1;
+
+    /* If not, fail with ENOTDIR */
+    if (!S_ISDIR(st.st_mode)) {
+        errno = ENOTDIR;
+        return -1;
+    }
+
+    errno = 0;
+    return 0;
+}
+
+static int mkdir_p(const char *path)
+{
+    /* Adapted from http://stackoverflow.com/a/2336245/119527 */
+    char *p;
+    int result = -1;
+
+    errno = 0;
+
+    printf("making dir: %s\n", path);
+
+    /* Copy string so it's mutable */
+    char *_path = strdup(path);
+    if (_path == NULL)
+        goto out;
+
+    /* Iterate the string */
+    for (p = _path + 1; *p; p++) {
+        if (*p == '/') {
+            /* Temporarily truncate */
+            *p = '\0';
+
+            if (maybe_mkdir(_path) != 0)
+                goto out;
+
+            *p = '/';
+        }
+    }
+
+    if (maybe_mkdir(_path) != 0)
+        goto out;
+
+    result = 0;
+
+out:
+    free(_path);
+    return result;
+}
+
 void unicodeToChar(char* dst, u16* src) {
 	if(!src || !dst)return;
 	while(*src)*(dst++)=(*(src++))&0xFF;
@@ -32,7 +97,7 @@ void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer, si
 	}
 	char dirname[0x120];
 	sprintf(dirname, "%s/%08x%s", dumpfolder, (unsigned int) lowpath_id, path);
-	mkdir(dirname, 0777);
+	mkdir_p(dirname);
 	
 	FS_DirectoryEntry dirStruct;
 	char fileName[0x106] = "";
@@ -49,6 +114,7 @@ void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer, si
 		if (dirStruct.attributes & FS_ATTRIBUTE_DIRECTORY) {
 			char newpath[0x120];
 			sprintf(newpath, "%s%s/", path, fileName);
+			printf("%s\n", newpath);
 			dumpFolder(newpath, lowpath_id, dumpfolder, filebuffer, bufsize);
 		} else {
 			char file_inpath[0x120];
@@ -56,8 +122,11 @@ void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer, si
 			char file_display_path[0x120];
 
 			sprintf(file_inpath, "%s%s", path, fileName);
+			printf("%s\n", file_inpath);
 			sprintf(file_outpath, "%s/%08x%s%s", dumpfolder, (unsigned int) lowpath_id, path, fileName);
+			printf("%s\n", file_outpath);
 			sprintf(file_display_path, "%08x%s%s", (unsigned int) lowpath_id, path, fileName);
+			printf("%s\n", file_display_path);
 			archive_copyfile(Extdata_Archive, SDArchive, file_inpath, file_outpath, filebuffer, 0, bufsize, file_display_path);
 		}
 	}
@@ -139,7 +208,9 @@ void dumpArchive(FS_MediaType mediatype, int i, FS_ArchiveID archivetype, char *
 	printf("Archive 0x%08x opened.\n", (unsigned int) i);
 	gfxFlushBuffers();
 	gfxSwapBuffers();
-	mkdir(dirpath, 0777);
+
+	mkdir_p(dirpath);
+
 	dumpFolder("/", i, dirpath, filebuffer, bufsize);
 	
 	FSUSER_CloseArchive(extdata_archive);
@@ -214,7 +285,6 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 	printf("Success!\n");
 	gfxFlushBuffers();
 	gfxSwapBuffers();
-	//svcSleepThread(5000000000LL);
 	
 	return 0;
 }
@@ -426,14 +496,17 @@ Result archive_writefile(Archive archive, char *path, u8 *buffer, u32 size)
 		memset(filepath, 0, 256);
 		strncpy(filepath, path, 255);
 
-		f = fopen(filepath, "w+");
-		if(f==NULL)return errno;
+		f = fopen(filepath, "w");
+		if(f==NULL) {
+			printf("filepath: %s\n", filepath);
+			return errno;
+		}
 
 		tmpval = fwrite(buffer, 1, size, f);
 
 		fclose(f);
 
-		if(tmpval!=size)return -2;
+		if(tmpval!=size) return -2;
 
 		return 0;
 	}
@@ -443,16 +516,16 @@ Result archive_writefile(Archive archive, char *path, u8 *buffer, u32 size)
 	ret = FSUSER_DeleteFile(extdata_archive, fspath);
 	
 	ret = FSUSER_CreateFile(extdata_archive, fspath, 0, size);
-	if(ret!=0)return ret;
-	
+	if(ret!=0) return ret;
+
 	ret = FSUSER_OpenFile(&filehandle, extdata_archive, fspath, FS_OPEN_WRITE, 0);
-	if(ret!=0)return ret;
+	if(ret!=0) return ret;
 
 	ret = FSFILE_Write(filehandle, &tmpval, 0, buffer, size, FS_WRITE_FLUSH);
 
 	FSFILE_Close(filehandle);
 
-	if(ret==0 && tmpval!=size)ret=-2;
+	if(ret==0 && tmpval!=size) ret=-2;
 
 	return ret;
 }
@@ -505,8 +578,21 @@ Result archive_copyfile(Archive inarchive, Archive outarchive, char *inpath, cha
 	if(ret!=0)
 	{
 		printf("-----Failed to write %s (%d): 0x%08x-----\n", display_filepath, (unsigned int) size, (unsigned int)ret);
+		printf("----- %s -------\n", outpath);
+
 		gfxFlushBuffers();
 		gfxSwapBuffers();
+		while (aptMainLoop())
+		{
+			gspWaitForVBlank();
+			gfxSwapBuffers();
+			hidScanInput();
+
+			// Your code goes here
+			u32 kDown = hidKeysDown();
+			if (kDown & KEY_START)
+				break; // break in order to return to hbmenu
+		}
 		return ret;
 	}
 
