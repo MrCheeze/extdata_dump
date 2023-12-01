@@ -12,7 +12,7 @@ Result EnumerateExtSaveData(u32* buffer, u32 bufsize, u32* extdataCount, bool sh
 
 	cmdbuf[0] = 0x8550102;
 	cmdbuf[1] = bufsize;
-	cmdbuf[2] = sharedExtdata ? mediatype_NAND : mediatype_SDMC;
+	cmdbuf[2] = sharedExtdata ? MEDIATYPE_NAND : MEDIATYPE_SD;
 	cmdbuf[3] = 4;
 	cmdbuf[4] = sharedExtdata ? 1 : 0;
 	cmdbuf[5] = (bufsize << 4) | 0xC;

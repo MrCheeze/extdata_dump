@@ -13,7 +13,72 @@
 char *user_extdata_dumpfolder = "dumps";
 char *shared_extdata_dumpfolder = "dumps";
 
-FS_archive extdata_archive;
+FS_Archive extdata_archive;
+
+static int maybe_mkdir(const char* path)
+{
+    struct stat st;
+    errno = 0;
+
+    /* Try to make the directory */
+    if (mkdir(path, 0777) == 0)
+        return 0;
+
+    /* If it fails for any reason but EEXIST, fail */
+    if (errno != EEXIST)
+        return -1;
+
+    /* Check if the existing path is a directory */
+    if (stat(path, &st) != 0)
+        return -1;
+
+    /* If not, fail with ENOTDIR */
+    if (!S_ISDIR(st.st_mode)) {
+        errno = ENOTDIR;
+        return -1;
+    }
+
+    errno = 0;
+    return 0;
+}
+
+static int mkdir_p(const char *path)
+{
+    /* Adapted from http://stackoverflow.com/a/2336245/119527 */
+    char *p;
+    int result = -1;
+
+    errno = 0;
+
+    printf("making dir: %s\n", path);
+
+    /* Copy string so it's mutable */
+    char *_path = strdup(path);
+    if (_path == NULL)
+        goto out;
+
+    /* Iterate the string */
+    for (p = _path + 1; *p; p++) {
+        if (*p == '/') {
+            /* Temporarily truncate */
+            *p = '\0';
+
+            if (maybe_mkdir(_path) != 0)
+                goto out;
+
+            *p = '/';
+        }
+    }
+
+    if (maybe_mkdir(_path) != 0)
+        goto out;
+
+    result = 0;
+
+out:
+    free(_path);
+    return result;
+}
 
 void unicodeToChar(char* dst, u16* src) {
 	if(!src || !dst)return;
@@ -23,18 +88,18 @@ void unicodeToChar(char* dst, u16* src) {
 
 void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer, size_t bufsize) {
 	Handle extdata_dir;
-	Result ret = FSUSER_OpenDirectory(NULL, &extdata_dir, extdata_archive, FS_makePath(PATH_CHAR, path));
+	Result ret = FSUSER_OpenDirectory(&extdata_dir, extdata_archive, fsMakePath(PATH_ASCII, path));
 	if (ret!=0) {
-		printf("could not open dir\n");
+		printf("could not open dir. Error 0x%lx\n", ret);
 		gfxFlushBuffers();
 		gfxSwapBuffers();
 		return;
 	}
 	char dirname[0x120];
 	sprintf(dirname, "%s/%08x%s", dumpfolder, (unsigned int) lowpath_id, path);
-	mkdir(dirname, 0777);
+	mkdir_p(dirname);
 	
-	FS_dirent dirStruct;
+	FS_DirectoryEntry dirStruct;
 	char fileName[0x106] = "";
 	int cont = 0;
 	while(1) {
@@ -42,13 +107,14 @@ void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer, si
 		FSDIR_Read(extdata_dir, &dataRead, 1, &dirStruct);
 		if(dataRead == 0) break;
 		unicodeToChar(fileName, dirStruct.name);
-		printf("name: %s%s%s\n", path, fileName, dirStruct.isDirectory ? " (DIRECTORY)" : "");
+		printf("name: %s%s%s\n", path, fileName, (dirStruct.attributes & FS_ATTRIBUTE_DIRECTORY) ? " (DIRECTORY)" : "");
 		gfxFlushBuffers();
 		gfxSwapBuffers();
 		cont++;
-		if (dirStruct.isDirectory) {
+		if (dirStruct.attributes & FS_ATTRIBUTE_DIRECTORY) {
 			char newpath[0x120];
 			sprintf(newpath, "%s%s/", path, fileName);
+			printf("%s\n", newpath);
 			dumpFolder(newpath, lowpath_id, dumpfolder, filebuffer, bufsize);
 		} else {
 			char file_inpath[0x120];
@@ -56,8 +122,11 @@ void dumpFolder(char *path, u32 lowpath_id, char *dumpfolder, u8 *filebuffer, si
 			char file_display_path[0x120];
 
 			sprintf(file_inpath, "%s%s", path, fileName);
+			printf("%s\n", file_inpath);
 			sprintf(file_outpath, "%s/%08x%s%s", dumpfolder, (unsigned int) lowpath_id, path, fileName);
+			printf("%s\n", file_outpath);
 			sprintf(file_display_path, "%08x%s%s", (unsigned int) lowpath_id, path, fileName);
+			printf("%s\n", file_display_path);
 			archive_copyfile(Extdata_Archive, SDArchive, file_inpath, file_outpath, filebuffer, 0, bufsize, file_display_path);
 		}
 	}
@@ -127,11 +196,10 @@ void getAName(int i, char *buffer) {
 	}
 }
 
-void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, char *dirpath, u8 *filebuffer, size_t bufsize) {
+void dumpArchive(FS_MediaType mediatype, int i, FS_ArchiveID archivetype, char *dirpath, u8 *filebuffer, size_t bufsize) {
 	u32 extdata_archive_lowpathdata[3] = {mediatype, i, 0};
-	extdata_archive = (FS_archive){archivetype, (FS_path){PATH_BINARY, 0xC, (u8*)extdata_archive_lowpathdata}};
-	
-	Result ret = FSUSER_OpenArchive(NULL, &extdata_archive);
+
+    Result ret = FSUSER_OpenArchive(&extdata_archive, archivetype, (FS_Path) { PATH_BINARY, sizeof(extdata_archive_lowpathdata), extdata_archive_lowpathdata });
 	if(ret!=0)
 	{
 		return;
@@ -140,10 +208,12 @@ void dumpArchive(mediatypes_enum mediatype, int i, FS_archiveIds archivetype, ch
 	printf("Archive 0x%08x opened.\n", (unsigned int) i);
 	gfxFlushBuffers();
 	gfxSwapBuffers();
-	mkdir(dirpath, 0777);
+
+	mkdir_p(dirpath);
+
 	dumpFolder("/", i, dirpath, filebuffer, bufsize);
 	
-	FSUSER_CloseArchive(NULL, &extdata_archive);
+	FSUSER_CloseArchive(extdata_archive);
 }
 
 Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
@@ -153,7 +223,7 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 	
 	memset(filebuffer, 0, bufsize);
 
-	ret = initCfgu();
+	ret = cfguInit();
 	if(ret!=0)
 	{
 		printf("initCfgu() failed: 0x%08x\n", (unsigned int)ret);
@@ -170,7 +240,7 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 		gfxSwapBuffers();
 		return ret;
 	}
-	exitCfgu();
+	cfguExit();
 
 	
 	u32* extdataList = (u32*)malloc(0x10000);
@@ -194,7 +264,7 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 	}
 	
 	for (i=0; i<extdataCount; ++i) {
-		dumpArchive(mediatype_SDMC, extdataList[i], ARCH_EXTDATA, user_extdata_dumpfolder, filebuffer, bufsize);
+		dumpArchive(MEDIATYPE_SD, extdataList[i], ARCHIVE_EXTDATA, user_extdata_dumpfolder, filebuffer, bufsize);
 	}
 	
 	extdataCount = 0;
@@ -208,14 +278,13 @@ Result backupAllExtdata(u8 *filebuffer, size_t bufsize)
 	}
 	
 	for (i=0; i<extdataCount; ++i) {
-		dumpArchive(mediatype_NAND, extdataList[i], ARCH_SHARED_EXTDATA, shared_extdata_dumpfolder, filebuffer, bufsize);
+		dumpArchive(MEDIATYPE_NAND, extdataList[i], ARCHIVE_SHARED_EXTDATA, shared_extdata_dumpfolder, filebuffer, bufsize);
 	}
 	free(extdataList);
 	
 	printf("Success!\n");
 	gfxFlushBuffers();
 	gfxSwapBuffers();
-	//svcSleepThread(5000000000LL);
 	
 	return 0;
 }
@@ -228,8 +297,8 @@ Result restoreFromSd(u8 *filebuffer, size_t bufsize) {
 
 	char sd_source[1000], destination_path[1000];
 	u32 destination_archive;
-	mediatypes_enum mtype;
-	FS_archiveIds atype;
+	FS_MediaType mtype;
+	FS_ArchiveID atype;
 	int buf2size = 0x10000;
 	u8 *buf2 = malloc(buf2size);
 	if (buf2==NULL)
@@ -244,16 +313,16 @@ Result restoreFromSd(u8 *filebuffer, size_t bufsize) {
 	while (fgets((char*) buf2, buf2size, configfile) != NULL) {
 		if (sscanf((const char*) buf2, "RESTORE \"%999[^\"]\" \"%x:%999[^\"]\"", sd_source, (unsigned int*) &destination_archive, destination_path) == 3) {
 			if (destination_archive >= 0x80000000) {
-				mtype = mediatype_NAND;
-				atype = ARCH_SHARED_EXTDATA;
+				mtype = MEDIATYPE_NAND;
+				atype = ARCHIVE_SHARED_EXTDATA;
 			}
 			else {
-				mtype = mediatype_SDMC;
-				atype = ARCH_EXTDATA;
+				mtype = MEDIATYPE_SD;
+				atype = ARCHIVE_EXTDATA;
 			}
 			u32 extdata_archive_lowpathdata[3] = {mtype, destination_archive, 0};
-			extdata_archive = (FS_archive){atype, (FS_path){PATH_BINARY, 0xC, (u8*)extdata_archive_lowpathdata}};
-			Result ret = FSUSER_OpenArchive(NULL, &extdata_archive);
+
+    		Result ret = FSUSER_OpenArchive(&extdata_archive, atype, (FS_Path) { PATH_BINARY, sizeof(extdata_archive_lowpathdata), extdata_archive_lowpathdata });
 			if(ret!=0)
 			{
 				printf("could not open archive\n");
@@ -272,7 +341,7 @@ Result restoreFromSd(u8 *filebuffer, size_t bufsize) {
 			}
 			gfxFlushBuffers();
 			gfxSwapBuffers();
-			FSUSER_CloseArchive(NULL, &extdata_archive);
+			FSUSER_CloseArchive(extdata_archive);
 		}
 	}
 	free(buf2);
@@ -289,8 +358,8 @@ Result backupByConfig(u8 *filebuffer, size_t bufsize) {
 
 	char source_path[1000], sd_destination[1000];
 	u32 source_archive;
-	mediatypes_enum mtype;
-	FS_archiveIds atype;
+	FS_MediaType mtype;
+	FS_ArchiveID atype;
 	int buf2size = 0x10000;
 	u8 *buf2 = malloc(buf2size);
 	if (buf2==NULL)
@@ -305,16 +374,17 @@ Result backupByConfig(u8 *filebuffer, size_t bufsize) {
 	while (fgets((char*) buf2, buf2size, configfile) != NULL) {
 		if (sscanf((const char*) buf2, "DUMP \"%x:%999[^\"]\" \"%999[^\"]\"", (unsigned int*) &source_archive, source_path, sd_destination) == 3) {
 			if (source_archive >= 0x80000000) {
-				mtype = mediatype_NAND;
-				atype = ARCH_SHARED_EXTDATA;
+				mtype = MEDIATYPE_NAND;
+				atype = ARCHIVE_SHARED_EXTDATA;
 			}
 			else {
-				mtype = mediatype_SDMC;
-				atype = ARCH_EXTDATA;
+				mtype = MEDIATYPE_SD;
+				atype = ARCHIVE_EXTDATA;
 			}
 			u32 extdata_archive_lowpathdata[3] = {mtype, source_archive, 0};
-			extdata_archive = (FS_archive){atype, (FS_path){PATH_BINARY, 0xC, (u8*)extdata_archive_lowpathdata}};
-			Result ret = FSUSER_OpenArchive(NULL, &extdata_archive);
+
+    		Result ret = FSUSER_OpenArchive(&extdata_archive, atype, (FS_Path) { PATH_BINARY, sizeof(extdata_archive_lowpathdata), extdata_archive_lowpathdata });
+
 			if(ret!=0)
 			{
 				printf("could not open archive\n");
@@ -333,7 +403,7 @@ Result backupByConfig(u8 *filebuffer, size_t bufsize) {
 			}
 			gfxFlushBuffers();
 			gfxSwapBuffers();
-			FSUSER_CloseArchive(NULL, &extdata_archive);
+			FSUSER_CloseArchive(extdata_archive);
 		}
 	}
 	free(buf2);
@@ -363,7 +433,7 @@ Result archive_getfilesize(Archive archive, char *path, u32 *outsize)
 		return 0;
 	}
 
-	ret = FSUSER_OpenFile(NULL, &filehandle, extdata_archive, FS_makePath(PATH_CHAR, path), 1, 0);
+	ret = FSUSER_OpenFile(&filehandle, extdata_archive, fsMakePath(PATH_ASCII, path), 1, 0);
 	if(ret!=0)return ret;
 
 	ret = FSFILE_GetSize(filehandle, &tmp64);
@@ -400,7 +470,7 @@ Result archive_readfile(Archive archive, char *path, u8 *buffer, u32 size)
 		return 0;
 	}
 
-	ret = FSUSER_OpenFile(NULL, &filehandle, extdata_archive, FS_makePath(PATH_CHAR, path), FS_OPEN_READ, 0);
+	ret = FSUSER_OpenFile(&filehandle, extdata_archive, fsMakePath(PATH_ASCII, path), FS_OPEN_READ, 0);
 	if(ret!=0)return ret;
 
 	ret = FSFILE_Read(filehandle, &tmpval, 0, buffer, size);
@@ -426,33 +496,36 @@ Result archive_writefile(Archive archive, char *path, u8 *buffer, u32 size)
 		memset(filepath, 0, 256);
 		strncpy(filepath, path, 255);
 
-		f = fopen(filepath, "w+");
-		if(f==NULL)return errno;
+		f = fopen(filepath, "w");
+		if(f==NULL) {
+			printf("filepath: %s\n", filepath);
+			return errno;
+		}
 
 		tmpval = fwrite(buffer, 1, size, f);
 
 		fclose(f);
 
-		if(tmpval!=size)return -2;
+		if(tmpval!=size) return -2;
 
 		return 0;
 	}
 
-	FS_path fspath = FS_makePath(PATH_CHAR, path);
+	FS_Path fspath = fsMakePath(PATH_ASCII, path);
 	
-	ret = FSUSER_DeleteFile(NULL, extdata_archive, fspath);
+	ret = FSUSER_DeleteFile(extdata_archive, fspath);
 	
-	ret = FSUSER_CreateFile(NULL, extdata_archive, fspath, size);
-	if(ret!=0)return ret;
-	
-	ret = FSUSER_OpenFile(NULL, &filehandle, extdata_archive, fspath, FS_OPEN_WRITE, 0);
-	if(ret!=0)return ret;
+	ret = FSUSER_CreateFile(extdata_archive, fspath, 0, size);
+	if(ret!=0) return ret;
+
+	ret = FSUSER_OpenFile(&filehandle, extdata_archive, fspath, FS_OPEN_WRITE, 0);
+	if(ret!=0) return ret;
 
 	ret = FSFILE_Write(filehandle, &tmpval, 0, buffer, size, FS_WRITE_FLUSH);
 
 	FSFILE_Close(filehandle);
 
-	if(ret==0 && tmpval!=size)ret=-2;
+	if(ret==0 && tmpval!=size) ret=-2;
 
 	return ret;
 }
@@ -505,8 +578,21 @@ Result archive_copyfile(Archive inarchive, Archive outarchive, char *inpath, cha
 	if(ret!=0)
 	{
 		printf("-----Failed to write %s (%d): 0x%08x-----\n", display_filepath, (unsigned int) size, (unsigned int)ret);
+		printf("----- %s -------\n", outpath);
+
 		gfxFlushBuffers();
 		gfxSwapBuffers();
+		while (aptMainLoop())
+		{
+			gspWaitForVBlank();
+			gfxSwapBuffers();
+			hidScanInput();
+
+			// Your code goes here
+			u32 kDown = hidKeysDown();
+			if (kDown & KEY_START)
+				break; // break in order to return to hbmenu
+		}
 		return ret;
 	}
 

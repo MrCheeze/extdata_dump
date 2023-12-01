@@ -113,7 +113,7 @@ int handle_menus()
 	{
 		consoleClear();
 
-		ret = draw_menu(mainmenu_entries, mainmenu_totalentries, 0, 0);
+		ret = draw_menu(mainmenu_entries, mainmenu_totalentries, 1, 1);
 		consoleClear();
 
 		if(ret<0)return ret;
